@@ -1,1 +1,2 @@
-weber state university fall 2025 a.i. hackathon 
+Weber State University fall 2025 a.i. hackathon 
+Mitch is cool
