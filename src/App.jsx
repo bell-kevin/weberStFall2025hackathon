@@ -52,21 +52,25 @@ function App() {
 
   return (
     <div className="app-container">
-      <header className="header">
-        <h1>Image to Story Generator</h1>
-        <p>Upload an image and get an AI-powered story</p>
-      </header>
-      <div className="content">
-        <ImageUpload onImageSelect={handleImageSelect} />
-        <ResultDisplay
-          description={description}
-          story={story}
-          audioUrl={audioUrl}
-          loading={loading}
-          error={error}
-        />
-        {storybook && <Storybook storybook={storybook} />}
-      </div>
+      {!storybook && (
+        <>
+          <header className="header">
+            <h1>Image to Story Generator</h1>
+            <p>Upload an image and get an AI-powered story</p>
+          </header>
+          <div className="content">
+            <ImageUpload onImageSelect={handleImageSelect} />
+            <ResultDisplay
+              description={description}
+              story={story}
+              audioUrl={audioUrl}
+              loading={loading}
+              error={error}
+            />
+          </div>
+        </>
+      )}
+      {storybook && <Storybook storybook={storybook} />}
     </div>
   );
 }
