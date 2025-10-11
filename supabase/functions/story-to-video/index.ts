@@ -206,11 +206,24 @@ Deno.serve(async (req: Request) => {
             outputFormat: "PNG",
           });
 
-          console.log(`Runware response received. Number of results: ${imageResults?.length || 0}`);
+          console.log(`Runware response received. Type: ${typeof imageResults}`);
+          console.log(`Runware response raw: ${JSON.stringify(imageResults)}`);
+          console.log(`Number of results: ${imageResults?.length || 0}`);
 
-          if (!imageResults || imageResults.length === 0) {
-            console.error(`No images returned from Runware for page ${index + 1}`);
-            throw new Error(`Runware SDK returned no images. This may indicate API quota exhausted or model unavailable.`);
+          if (!imageResults) {
+            console.error(`Runware returned null/undefined`);
+            throw new Error(`Runware SDK returned null/undefined. Check API key and quota.`);
+          }
+
+          if (Array.isArray(imageResults) && imageResults.length === 0) {
+            console.error(`Runware returned empty array`);
+            throw new Error(`Runware SDK returned no images. Your API quota may be exhausted or the model is unavailable.`);
+          }
+
+          if (Array.isArray(imageResults) && imageResults.length > 0 && imageResults[0]?.error) {
+            console.error(`Runware returned error in result:`, JSON.stringify(imageResults[0].error));
+            const errorMsg = imageResults[0].error?.message || imageResults[0].error?.errorMessage || JSON.stringify(imageResults[0].error);
+            throw new Error(`Runware API error: ${errorMsg}. This usually means your API key is invalid or your quota is exhausted.`);
           }
 
           const imageResult = imageResults[0];
@@ -241,7 +254,7 @@ Deno.serve(async (req: Request) => {
           } else {
             console.error(`Runware result missing both imageBase64 and imageURL!`);
             console.error(`Full result object: ${JSON.stringify(imageResult)}`);
-            throw new Error(`Runware returned invalid response: no imageBase64 or imageURL field found`);
+            throw new Error(`Runware returned invalid response: no imageBase64 or imageURL field found. Full response: ${JSON.stringify(imageResult)}`);
           }
         } catch (imageError) {
           console.error(`\n!!! IMAGE GENERATION ERROR for page ${index + 1} !!!`);
