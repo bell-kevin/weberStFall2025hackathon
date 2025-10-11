@@ -309,7 +309,7 @@ Deno.serve(async (req: Request) => {
           numberResults: 1,
           height: 512,
           width: 512,
-          outputType: "base64",
+          outputType: "base64Data",
           outputFormat: "PNG",
         }]),
       });
@@ -320,8 +320,14 @@ Deno.serve(async (req: Request) => {
         throw new Error(`Failed to generate image for page ${index + 1}: ${errorText}`);
       }
 
-      const imageData = await imageResponse.json();
-      const imageBase64 = imageData[0]?.imageBase64 || "";
+      const imageResult = await imageResponse.json();
+
+      if (imageResult.errors && imageResult.errors.length > 0) {
+        console.error(`Image generation errors for page ${index + 1}:`, JSON.stringify(imageResult.errors));
+        throw new Error(`Image generation failed: ${imageResult.errors[0].message}`);
+      }
+
+      const imageBase64 = imageResult.data?.[0]?.imageBase64 || "";
 
       storybook.push({
         page: index + 1,
