@@ -19,22 +19,20 @@ export async function describeImage(imageData) {
 }
 
 export async function getStoryFromDescription(description) {
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-story`;
 
-  if (!webhookUrl || webhookUrl === 'YOUR_N8N_WEBHOOK_URL_HERE') {
-    throw new Error('N8N webhook URL not configured');
-  }
-
-  const response = await fetch(webhookUrl, {
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ prompt: description }),
   });
 
   if (!response.ok) {
-    throw new Error('Failed to get story from n8n');
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to get story from n8n');
   }
 
   const data = await response.json();
