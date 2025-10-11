@@ -1,5 +1,3 @@
-import { Runware } from "npm:@runware/sdk-js@1.1.46";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -43,6 +41,16 @@ function parseSceneLines(sceneText: string): SceneLine[] {
   return lines;
 }
 
+function createPlaceholderImage(): string {
+  const svg = `<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+    <rect width="512" height="512" fill="#e0e7ff"/>
+    <text x="256" y="256" font-family="Arial" font-size="24" fill="#6366f1" text-anchor="middle" dominant-baseline="middle">
+      Story Image
+    </text>
+  </svg>`;
+  return btoa(svg);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -50,8 +58,6 @@ Deno.serve(async (req: Request) => {
       headers: corsHeaders,
     });
   }
-
-  let runware: any = null;
 
   try {
     const { storyText, originalImageData } = await req.json();
@@ -70,24 +76,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const elevenlabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    const runwareApiKey = Deno.env.get("RUNWARE_API_KEY");
 
     if (!elevenlabsApiKey) {
       return new Response(
         JSON.stringify({ error: "ELEVENLABS_API_KEY not configured" }),
-        {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    if (!runwareApiKey) {
-      return new Response(
-        JSON.stringify({ error: "RUNWARE_API_KEY not configured" }),
         {
           status: 500,
           headers: {
@@ -112,12 +104,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`Processing ${scenes.length} scenes into storybook format with audio and images...`);
-
-    console.log("Initializing Runware SDK once for all images...");
-    runware = new Runware({ apiKey: runwareApiKey });
-    await runware.connect();
-    console.log("Runware SDK connected successfully");
+    console.log(`Processing ${scenes.length} scenes into storybook format with audio...`);
 
     const storybook = [];
 
@@ -173,65 +160,8 @@ Deno.serve(async (req: Request) => {
         imageBase64 = originalImageData.replace(/^data:image\/[a-z]+;base64,/, '');
         console.log(`Original image loaded. Length: ${imageBase64.length} chars`);
       } else {
-        console.log(`Generating new image for page ${index + 1}...`);
-        const imagePrompt = `Children's storybook illustration, colorful and whimsical, digital art, suitable for kids: ${sceneText.substring(0, 200)}`;
-        console.log(`Image prompt: "${imagePrompt}"`);
-
-        try {
-          console.log(`Requesting image generation via Runware SDK...`);
-          const imageResults = await runware.requestImages({
-            positivePrompt: imagePrompt,
-            negativePrompt: "scary, dark, horror, violent, inappropriate, text, words, letters, watermark",
-            model: "runware:100@1",
-            numberResults: 1,
-            height: 512,
-            width: 512,
-            outputType: "base64",
-            outputFormat: "PNG",
-          });
-
-          console.log(`Runware response received. Number of results: ${imageResults?.length || 0}`);
-
-          if (!imageResults || imageResults.length === 0) {
-            console.error(`No images returned from Runware for page ${index + 1}`);
-            throw new Error(`Runware SDK returned no images. This may indicate API quota exhausted or model unavailable.`);
-          }
-
-          const imageResult = imageResults[0];
-          console.log(`Image result type: ${typeof imageResult}`);
-          console.log(`Image result keys: ${Object.keys(imageResult || {}).join(', ')}`);
-
-          if (imageResult.imageBase64) {
-            imageBase64 = imageResult.imageBase64;
-            console.log(`✓ Got base64 image directly. Length: ${imageBase64.length} chars`);
-          } else if (imageResult.imageURL) {
-            console.log(`Got image URL instead of base64: ${imageResult.imageURL}`);
-            console.log(`Downloading image from URL...`);
-
-            const urlResponse = await fetch(imageResult.imageURL);
-            if (!urlResponse.ok) {
-              throw new Error(`Failed to download image from URL. Status: ${urlResponse.status}`);
-            }
-
-            const imageBuffer = await urlResponse.arrayBuffer();
-            const imageBytes = new Uint8Array(imageBuffer);
-            let imageBinary = '';
-            for (let i = 0; i < imageBytes.length; i += chunkSize) {
-              const chunk = imageBytes.subarray(i, Math.min(i + chunkSize, imageBytes.length));
-              imageBinary += String.fromCharCode(...chunk);
-            }
-            imageBase64 = btoa(imageBinary);
-            console.log(`✓ Converted URL image to base64. Length: ${imageBase64.length} chars`);
-          } else {
-            console.error(`Runware result missing both imageBase64 and imageURL!`);
-            console.error(`Full result object: ${JSON.stringify(imageResult)}`);
-            throw new Error(`Runware returned invalid response: no imageBase64 or imageURL field found`);
-          }
-        } catch (runwareError) {
-          console.error(`Runware error for page ${index + 1}:`, runwareError);
-          const errorMessage = runwareError?.message || JSON.stringify(runwareError) || 'Unknown Runware error';
-          throw new Error(`Image generation failed: ${errorMessage}`);
-        }
+        console.log(`Using placeholder image for page ${index + 1}`);
+        imageBase64 = createPlaceholderImage();
       }
 
       const pageData = {
@@ -244,12 +174,6 @@ Deno.serve(async (req: Request) => {
 
       console.log(`✓ Page ${index + 1} complete. Audio: ${audioBase64.length} chars, Image: ${imageBase64.length} chars`);
       storybook.push(pageData);
-    }
-
-    if (runware) {
-      console.log("Disconnecting from Runware...");
-      await runware.disconnect();
-      console.log("Runware disconnected successfully");
     }
 
     console.log(`\n✓✓✓ Successfully created storybook with ${storybook.length} pages ✓✓✓`);
@@ -268,14 +192,6 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    if (runware) {
-      try {
-        await runware.disconnect();
-      } catch (disconnectError) {
-        console.error("Error disconnecting Runware:", disconnectError);
-      }
-    }
-
     console.error("\n!!! FATAL ERROR in story-to-video function !!!");
     console.error(`Error type: ${error?.constructor?.name || 'Unknown'}`);
     console.error(`Error message: ${error?.message || 'No message'}`);
@@ -285,10 +201,6 @@ Deno.serve(async (req: Request) => {
     }
 
     let detailedError = error?.message || String(error) || "Failed to process story to storybook";
-
-    if (error?.name === "RangeError" && error?.message?.includes("call stack")) {
-      detailedError = "Data size too large for processing. Try generating a shorter story with fewer pages.";
-    }
 
     return new Response(
       JSON.stringify({
