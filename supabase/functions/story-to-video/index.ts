@@ -248,7 +248,10 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Processing ${scenes.length} scenes into storybook format with audio and images...`);
 
-    const storybook = await Promise.all(scenes.map(async (sceneText, index) => {
+    const storybook = [];
+
+    for (let index = 0; index < scenes.length; index++) {
+      const sceneText = scenes[index];
       const lines = parseSceneLines(sceneText);
 
       console.log(`Generating audio for page ${index + 1}...`);
@@ -273,7 +276,9 @@ Deno.serve(async (req: Request) => {
       );
 
       if (!audioResponse.ok) {
-        throw new Error(`Failed to generate audio for page ${index + 1}`);
+        const errorText = await audioResponse.text();
+        console.error(`Audio API error for page ${index + 1}:`, errorText);
+        throw new Error(`Failed to generate audio for page ${index + 1}: ${errorText}`);
       }
 
       const audioBuffer = await audioResponse.arrayBuffer();
@@ -303,20 +308,22 @@ Deno.serve(async (req: Request) => {
       });
 
       if (!imageResponse.ok) {
-        throw new Error(`Failed to generate image for page ${index + 1}`);
+        const errorText = await imageResponse.text();
+        console.error(`Image API error for page ${index + 1}:`, errorText);
+        throw new Error(`Failed to generate image for page ${index + 1}: ${errorText}`);
       }
 
       const imageData = await imageResponse.json();
       const imageBase64 = imageData[0]?.imageBase64 || "";
 
-      return {
+      storybook.push({
         page: index + 1,
         text: sceneText,
         lines: lines,
         audioBase64: audioBase64,
         imageBase64: imageBase64,
-      };
-    }));
+      });
+    }
 
     console.log(`Successfully created storybook with ${storybook.length} pages`);
 
