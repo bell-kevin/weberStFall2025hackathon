@@ -46,14 +46,30 @@
 .placeholder-image {
   width: 100%;
   min-height: 300px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #fff3cd;
+  border: 2px solid #ffc107;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: #856404;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+.placeholder-image h3 {
+  margin: 0 0 10px 0;
+  color: #856404;
+}
+
+.placeholder-image p {
+  margin: 5px 0;
+}
+
+.placeholder-image ul {
+  margin: 5px 0;
+  padding-left: 20px;
 }
 
 .page-content {

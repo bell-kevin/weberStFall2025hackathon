@@ -12,13 +12,19 @@ export function Storybook({ storybook }) {
   const pages = storybook.storybook;
   const page = pages[currentPage];
 
-  console.log('Current page data:', {
+  const imageDebug = {
     pageNumber: page.page,
     hasImageBase64: !!page.imageBase64,
     imageBase64Length: page.imageBase64?.length || 0,
+    imageBase64Preview: page.imageBase64 ? page.imageBase64.substring(0, 50) + '...' : 'NO DATA',
     hasAudioBase64: !!page.audioBase64,
     audioBase64Length: page.audioBase64?.length || 0,
-  });
+  };
+
+  console.log('=== STORYBOOK PAGE DEBUG ===');
+  console.log('Current page data:', imageDebug);
+  console.log('Full page object keys:', Object.keys(page));
+  console.log('===========================');
 
   useEffect(() => {
     if (audioRef.current) {
@@ -57,8 +63,25 @@ export function Storybook({ storybook }) {
               <img src={imageSrc} alt={`Illustration for page ${page.page}`} />
             ) : (
               <div className="placeholder-image">
-                <p>Image loading...</p>
-                <p style={{ fontSize: '12px', color: '#666' }}>Check console for details</p>
+                <h3>⚠️ Image Missing</h3>
+                <p><strong>Issue:</strong> No image data received from API</p>
+                <div style={{ fontSize: '12px', marginTop: '10px', textAlign: 'left', maxWidth: '400px' }}>
+                  <p><strong>Debug Info:</strong></p>
+                  <ul style={{ textAlign: 'left' }}>
+                    <li>Page: {page.page}</li>
+                    <li>Image data present: {page.imageBase64 ? 'Yes' : 'No'}</li>
+                    <li>Image data length: {page.imageBase64?.length || 0} chars</li>
+                  </ul>
+                  <p style={{ marginTop: '10px' }}><strong>Possible causes:</strong></p>
+                  <ul style={{ textAlign: 'left' }}>
+                    <li>Runware API key not configured</li>
+                    <li>API quota exceeded</li>
+                    <li>Image generation failed on server</li>
+                  </ul>
+                  <p style={{ marginTop: '10px', color: '#ff6b6b' }}>
+                    Check the browser console (F12) for detailed logs
+                  </p>
+                </div>
               </div>
             )}
           </div>

@@ -293,14 +293,12 @@ Deno.serve(async (req: Request) => {
 
       console.log(`Generating child-friendly image for page ${index + 1}...`);
       const imagePrompt = `Children's storybook illustration, colorful and whimsical, suitable for kids: ${sceneText.substring(0, 200)}`;
+      console.log(`Image prompt: ${imagePrompt}`);
 
-      const imageResponse = await fetch("https://api.runware.ai/v1", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${runwareApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify([{
+      let imageBase64 = "";
+
+      try {
+        const imagePayload = [{
           taskType: "imageInference",
           taskUUID: crypto.randomUUID(),
           positivePrompt: imagePrompt,
@@ -311,31 +309,68 @@ Deno.serve(async (req: Request) => {
           width: 512,
           outputType: "base64Data",
           outputFormat: "PNG",
-        }]),
-      });
+        }];
 
-      if (!imageResponse.ok) {
-        const errorText = await imageResponse.text();
-        console.error(`Image API error for page ${index + 1}:`, errorText);
-        throw new Error(`Failed to generate image for page ${index + 1}: ${errorText}`);
+        console.log(`Sending image request to Runware API...`);
+
+        const imageResponse = await fetch("https://api.runware.ai/v1", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${runwareApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(imagePayload),
+        });
+
+        console.log(`Runware API response status: ${imageResponse.status}`);
+
+        if (!imageResponse.ok) {
+          const errorText = await imageResponse.text();
+          console.error(`Image API HTTP error for page ${index + 1} (status ${imageResponse.status}):`, errorText);
+          throw new Error(`Runware API returned status ${imageResponse.status}: ${errorText}`);
+        }
+
+        const imageResult = await imageResponse.json();
+        console.log(`Runware API response:`, JSON.stringify(imageResult).substring(0, 500));
+
+        if (imageResult.errors && imageResult.errors.length > 0) {
+          console.error(`Image generation errors for page ${index + 1}:`, JSON.stringify(imageResult.errors));
+          throw new Error(`Image generation failed: ${JSON.stringify(imageResult.errors[0])}`);
+        }
+
+        if (!imageResult.data || imageResult.data.length === 0) {
+          console.error(`No image data returned for page ${index + 1}. Full response:`, JSON.stringify(imageResult));
+          throw new Error(`No image data in Runware response. Check API quota and configuration.`);
+        }
+
+        imageBase64 = imageResult.data[0]?.imageBase64 || "";
+
+        if (!imageBase64) {
+          console.error(`Empty imageBase64 for page ${index + 1}. Data object:`, JSON.stringify(imageResult.data[0]));
+          throw new Error(`Runware returned empty imageBase64. Check API response format.`);
+        }
+
+        console.log(`Successfully generated image for page ${index + 1}. Base64 length: ${imageBase64.length}`);
+      } catch (imageError) {
+        console.error(`Error generating image for page ${index + 1}:`, imageError);
+        console.error(`Image error type: ${imageError.name}`);
+        console.error(`Image error message: ${imageError.message}`);
+        console.error(`Image error stack: ${imageError.stack}`);
+
+        throw new Error(`Failed to generate image for page ${index + 1}: ${imageError.message}. Check Runware API key, quota, and configuration.`);
       }
 
-      const imageResult = await imageResponse.json();
-
-      if (imageResult.errors && imageResult.errors.length > 0) {
-        console.error(`Image generation errors for page ${index + 1}:`, JSON.stringify(imageResult.errors));
-        throw new Error(`Image generation failed: ${imageResult.errors[0].message}`);
-      }
-
-      const imageBase64 = imageResult.data?.[0]?.imageBase64 || "";
-
-      storybook.push({
+      const pageData = {
         page: index + 1,
         text: sceneText,
         lines: lines,
         audioBase64: audioBase64,
         imageBase64: imageBase64,
-      });
+      };
+
+      console.log(`Page ${index + 1} complete. Audio length: ${audioBase64.length}, Image length: ${imageBase64.length}`);
+
+      storybook.push(pageData);
     }
 
     console.log(`Successfully created storybook with ${storybook.length} pages`);
