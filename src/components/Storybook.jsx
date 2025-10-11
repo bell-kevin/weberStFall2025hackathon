@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import './Storybook.css';
 
-export function Storybook({ storybook }) {
+export function Storybook({ storybook, onReset }) {
   const [currentPage, setCurrentPage] = useState(0);
   const audioRef = useRef(null);
 
@@ -115,13 +115,21 @@ export function Storybook({ storybook }) {
           >
             Previous
           </button>
-          <button
-            onClick={goToNextPage}
-            disabled={currentPage === pages.length - 1}
-            className="nav-button"
-          >
-            Next
-          </button>
+          {currentPage === pages.length - 1 ? (
+            <button
+              onClick={onReset}
+              className="nav-button"
+            >
+              Start Over
+            </button>
+          ) : (
+            <button
+              onClick={goToNextPage}
+              className="nav-button"
+            >
+              Next
+            </button>
+          )}
         </div>
       </div>
     </div>

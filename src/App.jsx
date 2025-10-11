@@ -70,7 +70,7 @@ function App() {
           </div>
         </>
       )}
-      {storybook && <Storybook storybook={storybook} />}
+      {storybook && <Storybook storybook={storybook} onReset={() => setStorybook(null)} />}
     </div>
   );
 }
