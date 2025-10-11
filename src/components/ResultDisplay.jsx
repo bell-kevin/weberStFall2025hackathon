@@ -1,7 +1,7 @@
 import './ResultDisplay.css';
 
-export function ResultDisplay({ description, loading, error }) {
-  if (!loading && !description && !error) {
+export function ResultDisplay({ description, story, audioUrl, loading, error }) {
+  if (!loading && !description && !story && !error) {
     return null;
   }
 
@@ -10,7 +10,7 @@ export function ResultDisplay({ description, loading, error }) {
       {loading && (
         <div className="loading-container">
           <div className="spinner"></div>
-          <p>Analyzing your image...</p>
+          <p>Creating your story...</p>
         </div>
       )}
 
@@ -27,16 +27,40 @@ export function ResultDisplay({ description, loading, error }) {
       )}
 
       {description && !loading && !error && (
-        <div className="description-container">
-          <div className="description-header">
-            <svg className="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <h3>Image Description</h3>
+        <>
+          <div className="description-container">
+            <div className="description-header">
+              <svg className="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              <h3>Image Description</h3>
+            </div>
+            <p className="description-text">{description}</p>
           </div>
-          <p className="description-text">{description}</p>
-        </div>
+
+          {story && (
+            <div className="story-container">
+              <div className="story-header">
+                <svg className="story-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                  <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                  <path d="M2 2l7.586 7.586" />
+                  <circle cx="11" cy="11" r="2" />
+                </svg>
+                <h3>Your Story</h3>
+              </div>
+              <p className="story-text">{story}</p>
+              {audioUrl && (
+                <div className="audio-container">
+                  <audio controls src={audioUrl} className="audio-player">
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

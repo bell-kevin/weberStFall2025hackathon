@@ -31,11 +31,13 @@ Deno.serve(async (req: Request) => {
     }
 
     const apiKey = Deno.env.get("RUNWARE_API_KEY");
-    console.log("API Key available:", !!apiKey);
 
     if (!apiKey) {
+      console.error("RUNWARE_API_KEY environment variable is not set");
       return new Response(
-        JSON.stringify({ error: "RUNWARE_API_KEY not configured" }),
+        JSON.stringify({ 
+          error: "RUNWARE_API_KEY not configured. Please set the RUNWARE_API_KEY secret for this edge function."
+        }),
         {
           status: 500,
           headers: {
@@ -46,7 +48,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("Initializing Runware...");
+    console.log("Initializing Runware SDK...");
     const runware = new Runware({
       apiKey: apiKey,
     });
@@ -54,12 +56,12 @@ Deno.serve(async (req: Request) => {
     console.log("Connecting to Runware...");
     await runware.connect();
 
-    console.log("Requesting image caption...");
+    console.log("Requesting image description...");
     const result = await runware.requestImageToText({
       inputImage: imageData,
     });
 
-    console.log("Caption received:", result);
+    console.log("Description received successfully");
     await runware.disconnect();
 
     return new Response(
@@ -72,11 +74,13 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    console.error("Error describing image:", error);
+    console.error("Error in describe-image function:", error);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    
     return new Response(
       JSON.stringify({
         error: error.message || "Failed to describe image",
-        details: error.toString()
       }),
       {
         status: 500,
