@@ -1,0 +1,81 @@
+.storybook-container {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.storybook-book {
+  background: #f9f7f4;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 2rem;
+  max-width: 600px;
+  width: 100%;
+}
+
+.storybook-page {
+  background: white;
+  padding: 2rem;
+  min-height: 300px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.page-number {
+  font-size: 0.875rem;
+  color: #666;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
+.page-content {
+  line-height: 1.8;
+  font-size: 1rem;
+  color: #333;
+}
+
+.story-line {
+  margin-bottom: 1rem;
+}
+
+.story-line .speaker {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.story-line .text {
+  color: #333;
+}
+
+.storybook-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.nav-button {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-button:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.nav-button:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  transform: none;
+}

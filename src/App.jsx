@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { ImageUpload } from './components/ImageUpload';
 import { ResultDisplay } from './components/ResultDisplay';
-import { describeImage, getStoryFromDescription, convertTextToSpeech } from './services/api';
+import { Storybook } from './components/Storybook';
+import { describeImage, getStoryFromDescription, convertTextToSpeech, createStorybook } from './services/api';
 import './styles/App.css';
 
 function App() {
   const [description, setDescription] = useState('');
   const [story, setStory] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
+  const [storybook, setStorybook] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -16,6 +18,7 @@ function App() {
       setDescription('');
       setStory('');
       setAudioUrl('');
+      setStorybook(null);
       setError('');
       return;
     }
@@ -25,6 +28,7 @@ function App() {
     setDescription('');
     setStory('');
     setAudioUrl('');
+    setStorybook(null);
 
     try {
       const result = await describeImage(imageData);
@@ -36,6 +40,9 @@ function App() {
       const audioBlob = await convertTextToSpeech(generatedStory);
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
+
+      const storybookData = await createStorybook(generatedStory);
+      setStorybook(storybookData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -58,6 +65,7 @@ function App() {
           loading={loading}
           error={error}
         />
+        {storybook && <Storybook storybook={storybook} />}
       </div>
     </div>
   );

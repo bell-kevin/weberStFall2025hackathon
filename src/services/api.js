@@ -83,3 +83,33 @@ export async function convertTextToSpeech(text) {
 
   return await response.blob();
 }
+
+export async function createStorybook(storyText) {
+  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/story-to-video`;
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ storyText }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.error || 'Failed to create storybook');
+    } catch (e) {
+      throw new Error(`Failed to create storybook: ${response.status}`);
+    }
+  }
+
+  const text = await response.text();
+  if (!text) {
+    throw new Error('Empty response from server');
+  }
+
+  return JSON.parse(text);
+}

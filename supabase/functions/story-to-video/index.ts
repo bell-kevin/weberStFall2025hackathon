@@ -188,47 +188,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const {
-      storyText,
-      voiceMap = DEFAULT_VOICE_MAP,
-      modelName = "runware/video-cinematic",
-      defaultDuration = 6,
-    } = await req.json();
+    const { storyText } = await req.json();
 
     if (!storyText) {
       return new Response(
         JSON.stringify({ error: "storyText is required" }),
         {
           status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    const elevenlabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    const runwareApiKey = Deno.env.get("RUNWARE_API_KEY");
-
-    if (!elevenlabsApiKey) {
-      return new Response(
-        JSON.stringify({ error: "ELEVENLABS_API_KEY not configured" }),
-        {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
-    if (!runwareApiKey) {
-      return new Response(
-        JSON.stringify({ error: "RUNWARE_API_KEY not configured" }),
-        {
-          status: 500,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json",
@@ -251,36 +217,25 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`Processing ${scenes.length} scenes...`);
+    console.log(`Processing ${scenes.length} scenes into storybook format...`);
 
-    const processedScenes = [];
+    const storybook = scenes.map((sceneText, index) => {
+      const lines = parseSceneLines(sceneText);
 
-    for (let i = 0; i < scenes.length; i++) {
-      const sceneResult = await processScene(
-        i + 1,
-        scenes[i],
-        voiceMap,
-        defaultDuration,
-        modelName,
-        elevenlabsApiKey,
-        runwareApiKey
-      );
+      return {
+        page: index + 1,
+        text: sceneText,
+        lines: lines,
+      };
+    });
 
-      processedScenes.push({
-        sceneIndex: i + 1,
-        audioCount: sceneResult.audioBlobs.length,
-        videoSize: sceneResult.videoBlob.size,
-      });
-    }
-
-    console.log(`Successfully processed ${processedScenes.length} scenes`);
+    console.log(`Successfully created storybook with ${storybook.length} pages`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        scenesProcessed: processedScenes.length,
-        scenes: processedScenes,
-        message: "Video generation completed. Note: This function returns metadata only. For full video assembly, additional processing is required.",
+        totalPages: storybook.length,
+        storybook: storybook,
       }),
       {
         headers: {
@@ -295,7 +250,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({
-        error: error.message || "Failed to process story to video",
+        error: error.message || "Failed to process story to storybook",
       }),
       {
         status: 500,
