@@ -13,22 +13,6 @@ interface SceneLine {
 
 const DIALOGUE_REGEX = /^\s*([A-Za-z][\w\- ]{0,48})\s*:\s*(.+?)\s*$/;
 
-function extractErrorMessage(error: any): string {
-  if (!error) return 'Unknown error (null/undefined)';
-  if (typeof error === 'string') return error;
-  if (error.message) return error.message;
-
-  const errorString = String(error);
-  if (errorString !== '[object Object]') return errorString;
-
-  try {
-    const jsonError = JSON.stringify(error, Object.getOwnPropertyNames(error));
-    if (jsonError && jsonError !== '{}') return jsonError;
-  } catch {}
-
-  return 'Error could not be serialized';
-}
-
 function splitScenes(story: string): string[] {
   return story.split("\n\n")
     .map(s => s.trim())
@@ -193,87 +177,54 @@ Deno.serve(async (req: Request) => {
         const imagePrompt = `Children's storybook illustration, colorful and whimsical, digital art, suitable for kids: ${sceneText.substring(0, 200)}`;
         console.log(`Image prompt: "${imagePrompt}"`);
 
-        try {
-          console.log(`Requesting image generation via Runware SDK...`);
-          const imageResults = await runware.requestImages({
-            positivePrompt: imagePrompt,
-            negativePrompt: "scary, dark, horror, violent, inappropriate, text, words, letters, watermark",
-            model: "runware:100@1",
-            numberResults: 1,
-            height: 512,
-            width: 512,
-            outputType: "base64",
-            outputFormat: "PNG",
-          });
+        console.log(`Requesting image generation via Runware SDK...`);
+        const imageResults = await runware.requestImages({
+          positivePrompt: imagePrompt,
+          negativePrompt: "scary, dark, horror, violent, inappropriate, text, words, letters, watermark",
+          model: "runware:100@1",
+          numberResults: 1,
+          height: 512,
+          width: 512,
+          outputType: "base64",
+          outputFormat: "PNG",
+        });
 
-          console.log(`Runware response received. Type: ${typeof imageResults}`);
-          console.log(`Runware response raw: ${JSON.stringify(imageResults)}`);
-          console.log(`Number of results: ${imageResults?.length || 0}`);
+        console.log(`Runware response received. Number of results: ${imageResults?.length || 0}`);
 
-          if (!imageResults) {
-            console.error(`Runware returned null/undefined`);
-            throw new Error(`Runware SDK returned null/undefined. Check API key and quota.`);
+        if (!imageResults || imageResults.length === 0) {
+          console.error(`No images returned from Runware for page ${index + 1}`);
+          throw new Error(`Runware SDK returned no images. This may indicate API quota exhausted or model unavailable.`);
+        }
+
+        const imageResult = imageResults[0];
+        console.log(`Image result type: ${typeof imageResult}`);
+        console.log(`Image result keys: ${Object.keys(imageResult || {}).join(', ')}`);
+
+        if (imageResult.imageBase64) {
+          imageBase64 = imageResult.imageBase64;
+          console.log(`✓ Got base64 image directly. Length: ${imageBase64.length} chars`);
+        } else if (imageResult.imageURL) {
+          console.log(`Got image URL instead of base64: ${imageResult.imageURL}`);
+          console.log(`Downloading image from URL...`);
+
+          const urlResponse = await fetch(imageResult.imageURL);
+          if (!urlResponse.ok) {
+            throw new Error(`Failed to download image from URL. Status: ${urlResponse.status}`);
           }
 
-          if (Array.isArray(imageResults) && imageResults.length === 0) {
-            console.error(`Runware returned empty array`);
-            throw new Error(`Runware SDK returned no images. Your API quota may be exhausted or the model is unavailable.`);
+          const imageBuffer = await urlResponse.arrayBuffer();
+          const imageBytes = new Uint8Array(imageBuffer);
+          let imageBinary = '';
+          for (let i = 0; i < imageBytes.length; i += chunkSize) {
+            const chunk = imageBytes.subarray(i, Math.min(i + chunkSize, imageBytes.length));
+            imageBinary += String.fromCharCode(...chunk);
           }
-
-          if (Array.isArray(imageResults) && imageResults.length > 0 && imageResults[0]?.error) {
-            console.error(`Runware returned error in result:`, JSON.stringify(imageResults[0].error));
-            const errorMsg = imageResults[0].error?.message || imageResults[0].error?.errorMessage || JSON.stringify(imageResults[0].error);
-            throw new Error(`Runware API error: ${errorMsg}. This usually means your API key is invalid or your quota is exhausted.`);
-          }
-
-          const imageResult = imageResults[0];
-          console.log(`Image result type: ${typeof imageResult}`);
-          console.log(`Image result keys: ${Object.keys(imageResult || {}).join(', ')}`);
-
-          if (imageResult.imageBase64) {
-            imageBase64 = imageResult.imageBase64;
-            console.log(`✓ Got base64 image directly. Length: ${imageBase64.length} chars`);
-          } else if (imageResult.imageURL) {
-            console.log(`Got image URL instead of base64: ${imageResult.imageURL}`);
-            console.log(`Downloading image from URL...`);
-
-            const urlResponse = await fetch(imageResult.imageURL);
-            if (!urlResponse.ok) {
-              throw new Error(`Failed to download image from URL. Status: ${urlResponse.status}`);
-            }
-
-            const imageBuffer = await urlResponse.arrayBuffer();
-            const imageBytes = new Uint8Array(imageBuffer);
-            let imageBinary = '';
-            for (let i = 0; i < imageBytes.length; i += chunkSize) {
-              const chunk = imageBytes.subarray(i, Math.min(i + chunkSize, imageBytes.length));
-              imageBinary += String.fromCharCode(...chunk);
-            }
-            imageBase64 = btoa(imageBinary);
-            console.log(`✓ Converted URL image to base64. Length: ${imageBase64.length} chars`);
-          } else {
-            console.error(`Runware result missing both imageBase64 and imageURL!`);
-            console.error(`Full result object: ${JSON.stringify(imageResult)}`);
-            throw new Error(`Runware returned invalid response: no imageBase64 or imageURL field found. Full response: ${JSON.stringify(imageResult)}`);
-          }
-        } catch (imageError) {
-          console.error(`\n!!! IMAGE GENERATION ERROR for page ${index + 1} !!!`);
-          console.error(`Error type: ${imageError?.constructor?.name || typeof imageError}`);
-          console.error(`Error message: ${imageError?.message || 'No message property'}`);
-          console.error(`Error string: ${String(imageError)}`);
-
-          try {
-            console.error(`Error JSON: ${JSON.stringify(imageError, Object.getOwnPropertyNames(imageError), 2)}`);
-          } catch (e) {
-            console.error(`Could not JSON stringify error`);
-          }
-
-          if (imageError?.stack) {
-            console.error(`Stack trace: ${imageError.stack}`);
-          }
-
-          const formattedMessage = extractErrorMessage(imageError);
-          throw new Error(`Image generation failed for page ${index + 1}: ${formattedMessage}`);
+          imageBase64 = btoa(imageBinary);
+          console.log(`✓ Converted URL image to base64. Length: ${imageBase64.length} chars`);
+        } else {
+          console.error(`Runware result missing both imageBase64 and imageURL!`);
+          console.error(`Full result object: ${JSON.stringify(imageResult)}`);
+          throw new Error(`Runware returned invalid response: no imageBase64 or imageURL field found`);
         }
       }
 
@@ -320,21 +271,14 @@ Deno.serve(async (req: Request) => {
     }
 
     console.error("\n!!! FATAL ERROR in story-to-video function !!!");
-    console.error(`Error type: ${error?.constructor?.name || typeof error}`);
-    console.error(`Error message: ${error?.message || 'No message property'}`);
+    console.error(`Error type: ${error?.constructor?.name || 'Unknown'}`);
+    console.error(`Error message: ${error?.message || 'No message'}`);
     console.error(`Error string: ${String(error)}`);
-
-    try {
-      console.error(`Error JSON: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`);
-    } catch (e) {
-      console.error(`Could not JSON stringify error`);
-    }
-
     if (error?.stack) {
       console.error(`Stack trace:\n${error.stack}`);
     }
 
-    let detailedError = extractErrorMessage(error);
+    let detailedError = error?.message || String(error) || "Failed to process story to storybook";
 
     if (error?.name === "RangeError" && error?.message?.includes("call stack")) {
       detailedError = "Data size too large for processing. Try generating a shorter story with fewer pages.";
@@ -343,7 +287,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         error: detailedError,
-        errorType: error?.constructor?.name || error?.name || typeof error,
+        errorType: error?.constructor?.name || error?.name || 'Error',
         details: error?.stack || 'No stack trace available',
       }),
       {
