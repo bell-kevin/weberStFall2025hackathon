@@ -155,8 +155,8 @@ Deno.serve(async (req: Request) => {
 
       let imageBase64 = "";
 
-      if (isLastPage && originalImageData) {
-        console.log(`Using original uploaded image for final page ${index + 1}`);
+      if (originalImageData) {
+        console.log(`Using original uploaded image for page ${index + 1}`);
         imageBase64 = originalImageData.replace(/^data:image\/[a-z]+;base64,/, '');
         console.log(`Original image loaded. Length: ${imageBase64.length} chars`);
       } else {
