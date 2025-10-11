@@ -100,9 +100,15 @@ export async function createStorybook(storyText, originalImageData = null) {
     const text = await response.text();
     try {
       const errorData = JSON.parse(text);
-      throw new Error(errorData.error || 'Failed to create storybook');
+      const errorMessage = errorData.error || 'Failed to create storybook';
+      const errorType = errorData.errorType ? ` (${errorData.errorType})` : '';
+      const details = errorData.details ? `\n\nDetails: ${errorData.details}` : '';
+      throw new Error(`${errorMessage}${errorType}${details}`);
     } catch (e) {
-      throw new Error(`Failed to create storybook: ${response.status}`);
+      if (e.message.includes('Failed to create storybook')) {
+        throw e;
+      }
+      throw new Error(`Failed to create storybook (HTTP ${response.status}): ${text}`);
     }
   }
 

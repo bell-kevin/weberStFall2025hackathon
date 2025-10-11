@@ -282,7 +282,14 @@ Deno.serve(async (req: Request) => {
       }
 
       const audioBuffer = await audioResponse.arrayBuffer();
-      const audioBase64 = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+      const audioBytes = new Uint8Array(audioBuffer);
+      let audioBinary = '';
+      const chunkSize = 8192;
+      for (let i = 0; i < audioBytes.length; i += chunkSize) {
+        const chunk = audioBytes.subarray(i, Math.min(i + chunkSize, audioBytes.length));
+        audioBinary += String.fromCharCode(...chunk);
+      }
+      const audioBase64 = btoa(audioBinary);
 
       console.log(`Generating child-friendly image for page ${index + 1}...`);
       const imagePrompt = `Children's storybook illustration, colorful and whimsical, suitable for kids: ${sceneText.substring(0, 200)}`;
@@ -343,10 +350,20 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     console.error("Error in story-to-video function:", error);
     console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("Error name:", error.name);
+
+    let detailedError = error.message || "Failed to process story to storybook";
+
+    if (error.name === "RangeError" && error.message.includes("call stack")) {
+      detailedError = "Data size too large for processing. Try generating a shorter story with fewer pages.";
+    }
 
     return new Response(
       JSON.stringify({
-        error: error.message || "Failed to process story to storybook",
+        error: detailedError,
+        errorType: error.name,
+        details: error.stack,
       }),
       {
         status: 500,
