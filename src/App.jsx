@@ -55,7 +55,7 @@ function App() {
       {!storybook && (
         <>
           <header className="header">
-            <h1>Image to Story Generator</h1>
+            <h1>Bolt's Bedtime Bot Stories</h1>
             <p>Upload an image and get an AI-powered story</p>
           </header>
           <div className="content">
