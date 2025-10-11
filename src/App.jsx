@@ -41,7 +41,7 @@ function App() {
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
 
-      const storybookData = await createStorybook(generatedStory);
+      const storybookData = await createStorybook(generatedStory, imageData);
       setStorybook(storybookData);
     } catch (err) {
       setError(err.message);

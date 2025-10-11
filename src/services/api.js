@@ -84,7 +84,7 @@ export async function convertTextToSpeech(text) {
   return await response.blob();
 }
 
-export async function createStorybook(storyText) {
+export async function createStorybook(storyText, originalImageData = null) {
   const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/story-to-video`;
 
   const response = await fetch(apiUrl, {
@@ -93,7 +93,7 @@ export async function createStorybook(storyText) {
       'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ storyText }),
+    body: JSON.stringify({ storyText, originalImageData }),
   });
 
   if (!response.ok) {

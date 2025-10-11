@@ -188,13 +188,42 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { storyText } = await req.json();
+    const { storyText, originalImageData } = await req.json();
 
     if (!storyText) {
       return new Response(
         JSON.stringify({ error: "storyText is required" }),
         {
           status: 400,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    const elevenlabsApiKey = Deno.env.get("ELEVENLABS_API_KEY");
+    const runwareApiKey = Deno.env.get("RUNWARE_API_KEY");
+
+    if (!elevenlabsApiKey) {
+      return new Response(
+        JSON.stringify({ error: "ELEVENLABS_API_KEY not configured" }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    if (!runwareApiKey) {
+      return new Response(
+        JSON.stringify({ error: "RUNWARE_API_KEY not configured" }),
+        {
+          status: 500,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json",
@@ -217,17 +246,77 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`Processing ${scenes.length} scenes into storybook format...`);
+    console.log(`Processing ${scenes.length} scenes into storybook format with audio and images...`);
 
-    const storybook = scenes.map((sceneText, index) => {
+    const storybook = await Promise.all(scenes.map(async (sceneText, index) => {
       const lines = parseSceneLines(sceneText);
+
+      console.log(`Generating audio for page ${index + 1}...`);
+      const audioResponse = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM`,
+        {
+          method: "POST",
+          headers: {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": elevenlabsApiKey,
+          },
+          body: JSON.stringify({
+            text: sceneText,
+            model_id: "eleven_monolingual_v1",
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.5,
+            },
+          }),
+        }
+      );
+
+      if (!audioResponse.ok) {
+        throw new Error(`Failed to generate audio for page ${index + 1}`);
+      }
+
+      const audioBuffer = await audioResponse.arrayBuffer();
+      const audioBase64 = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+
+      console.log(`Generating child-friendly image for page ${index + 1}...`);
+      const imagePrompt = `Children's storybook illustration, colorful and whimsical, suitable for kids: ${sceneText.substring(0, 200)}`;
+
+      const imageResponse = await fetch("https://api.runware.ai/v1", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${runwareApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify([{
+          taskType: "imageInference",
+          taskUUID: crypto.randomUUID(),
+          positivePrompt: imagePrompt,
+          negativePrompt: "scary, dark, horror, violent, inappropriate",
+          model: "runware:100@1",
+          numberResults: 1,
+          height: 512,
+          width: 512,
+          outputType: "base64",
+          outputFormat: "PNG",
+        }]),
+      });
+
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to generate image for page ${index + 1}`);
+      }
+
+      const imageData = await imageResponse.json();
+      const imageBase64 = imageData[0]?.imageBase64 || "";
 
       return {
         page: index + 1,
         text: sceneText,
         lines: lines,
+        audioBase64: audioBase64,
+        imageBase64: imageBase64,
       };
-    });
+    }));
 
     console.log(`Successfully created storybook with ${storybook.length} pages`);
 

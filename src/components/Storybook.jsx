@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './Storybook.css';
 
 export function Storybook({ storybook }) {
   const [currentPage, setCurrentPage] = useState(0);
+  const audioRef = useRef(null);
 
   if (!storybook || !storybook.storybook || storybook.storybook.length === 0) {
     return null;
@@ -10,6 +11,15 @@ export function Storybook({ storybook }) {
 
   const pages = storybook.storybook;
   const page = pages[currentPage];
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.load();
+      audioRef.current.play().catch(err => {
+        console.log('Audio autoplay prevented:', err);
+      });
+    }
+  }, [currentPage]);
 
   const goToNextPage = () => {
     if (currentPage < pages.length - 1) {
@@ -23,11 +33,21 @@ export function Storybook({ storybook }) {
     }
   };
 
+  const audioSrc = page.audioBase64 ? `data:audio/mpeg;base64,${page.audioBase64}` : null;
+  const imageSrc = page.imageBase64 ? `data:image/png;base64,${page.imageBase64}` : null;
+
   return (
     <div className="storybook-container">
       <div className="storybook-book">
         <div className="storybook-page">
           <div className="page-number">Page {page.page} of {pages.length}</div>
+
+          {imageSrc && (
+            <div className="page-image">
+              <img src={imageSrc} alt={`Illustration for page ${page.page}`} />
+            </div>
+          )}
+
           <div className="page-content">
             {page.lines.map((line, idx) => (
               <div key={idx} className="story-line">
@@ -38,7 +58,17 @@ export function Storybook({ storybook }) {
               </div>
             ))}
           </div>
+
+          {audioSrc && (
+            <div className="audio-controls">
+              <audio ref={audioRef} controls>
+                <source src={audioSrc} type="audio/mpeg" />
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          )}
         </div>
+
         <div className="storybook-controls">
           <button
             onClick={goToPreviousPage}
