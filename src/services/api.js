@@ -17,3 +17,24 @@ export async function describeImage(imageData) {
 
   return await response.json();
 }
+
+export async function getStoryFromDescription(description) {
+  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-story`;
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prompt: description }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to get story from n8n');
+  }
+
+  const data = await response.json();
+  return data.story || data.text || data.response || 'No story returned';
+}
