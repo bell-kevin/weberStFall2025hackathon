@@ -30,16 +30,36 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const apiKey = Deno.env.get("RUNWARE_API_KEY");
+    console.log("API Key available:", !!apiKey);
+
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "RUNWARE_API_KEY not configured" }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    console.log("Initializing Runware...");
     const runware = new Runware({
-      apiKey: Deno.env.get("RUNWARE_API_KEY") || "",
+      apiKey: apiKey,
     });
 
+    console.log("Connecting to Runware...");
     await runware.connect();
 
+    console.log("Requesting image caption...");
     const result = await runware.imageCaption({
       inputImage: imageData,
     });
 
+    console.log("Caption received:", result);
     await runware.disconnect();
 
     return new Response(
@@ -54,7 +74,10 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     console.error("Error describing image:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Failed to describe image" }),
+      JSON.stringify({
+        error: error.message || "Failed to describe image",
+        details: error.toString()
+      }),
       {
         status: 500,
         headers: {

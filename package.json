@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@runware/sdk-js": "^0.17.1",
+    "@runware/sdk-js": "^1.1.46",
     "@supabase/supabase-js": "^2.47.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
