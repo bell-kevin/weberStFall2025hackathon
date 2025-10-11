@@ -44,9 +44,16 @@ export async function getStoryFromDescription(description) {
     const text = await response.text();
     try {
       const errorData = JSON.parse(text);
-      throw new Error(errorData.error || 'Failed to get story from n8n');
+      const errorMessage = errorData.error || 'Failed to get story from n8n';
+      const errorType = errorData.errorType ? ` (${errorData.errorType})` : '';
+      const details = errorData.details ? `\n\nDetails: ${errorData.details}` : '';
+      const hint = errorData.hint ? `\n\nHint: ${errorData.hint}` : '';
+      throw new Error(`${errorMessage}${errorType}${details}${hint}`);
     } catch (e) {
-      throw new Error(`Failed to get story from n8n: ${response.status}`);
+      if (e.message.includes('Failed to get story')) {
+        throw e;
+      }
+      throw new Error(`Failed to get story from n8n (HTTP ${response.status}): ${text}`);
     }
   }
 

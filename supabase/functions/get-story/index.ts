@@ -28,7 +28,26 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const webhookUrl = "https://app.mitchtryon.com/webhook-test/43434c95-3e35-4d77-b96f-77e553a543d6";
+    const webhookUrl = Deno.env.get("N8N_WEBHOOK_URL");
+
+    if (!webhookUrl) {
+      return new Response(
+        JSON.stringify({
+          error: "N8N_WEBHOOK_URL not configured",
+          details: "The n8n webhook URL must be configured in environment variables. Please set N8N_WEBHOOK_URL to your n8n webhook endpoint."
+        }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    console.log(`Calling n8n webhook: ${webhookUrl}`);
+    console.log(`Prompt: ${prompt.substring(0, 100)}...`);
 
     const response = await fetch(webhookUrl, {
       method: "POST",
@@ -38,8 +57,12 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({ prompt }),
     });
 
+    console.log(`n8n response status: ${response.status}`);
+
     if (!response.ok) {
-      throw new Error(`n8n webhook failed with status ${response.status}`);
+      const errorText = await response.text();
+      console.error(`n8n webhook error (${response.status}):`, errorText);
+      throw new Error(`n8n webhook failed with status ${response.status}. Response: ${errorText.substring(0, 200)}`);
     }
 
     const text = await response.text();
@@ -66,10 +89,16 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     console.error("Error getting story:", error);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("Error name:", error.name);
+
     return new Response(
       JSON.stringify({
         error: error.message || "Failed to get story",
-        details: error.toString()
+        errorType: error.name,
+        details: error.stack || error.toString(),
+        hint: "Check that your n8n webhook is active and accessible. The webhook should accept POST requests with a 'prompt' field."
       }),
       {
         status: 500,
