@@ -13,6 +13,44 @@ interface SceneLine {
 
 const DIALOGUE_REGEX = /^\s*([A-Za-z][\w\- ]{0,48})\s*:\s*(.+?)\s*$/;
 
+function extractErrorMessage(error: unknown): string {
+  if (!error) {
+    return "Unknown error";
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message || "Unknown error";
+  }
+
+  if (typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+
+    if (typeof message === "string") {
+      return message;
+    }
+
+    if (message && typeof message === "object") {
+      try {
+        return JSON.stringify(message);
+      } catch {
+        // fall through to stringify error object below
+      }
+    }
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  return String(error);
+}
+
 function splitScenes(story: string): string[] {
   return story.split("\n\n")
     .map(s => s.trim())
@@ -236,7 +274,8 @@ Deno.serve(async (req: Request) => {
             console.error(`Stack trace: ${imageError.stack}`);
           }
 
-          throw new Error(`Image generation failed for page ${index + 1}: ${imageError?.message || String(imageError)}`);
+          const formattedMessage = extractErrorMessage(imageError);
+          throw new Error(`Image generation failed for page ${index + 1}: ${formattedMessage}`);
         }
       }
 
