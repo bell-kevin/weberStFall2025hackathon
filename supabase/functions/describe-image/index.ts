@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
     await runware.connect();
 
     console.log("Requesting image caption...");
-    const result = await runware.imageCaption({
+    const result = await runware.requestImageToText({
       inputImage: imageData,
     });
 
@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
     await runware.disconnect();
 
     return new Response(
-      JSON.stringify({ description: result[0]?.text || "No description available" }),
+      JSON.stringify({ description: result.text || "No description available" }),
       {
         headers: {
           ...corsHeaders,
