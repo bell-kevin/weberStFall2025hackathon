@@ -13,42 +13,20 @@ interface SceneLine {
 
 const DIALOGUE_REGEX = /^\s*([A-Za-z][\w\- ]{0,48})\s*:\s*(.+?)\s*$/;
 
-function extractErrorMessage(error: unknown): string {
-  if (!error) {
-    return "Unknown error";
-  }
+function extractErrorMessage(error: any): string {
+  if (!error) return 'Unknown error (null/undefined)';
+  if (typeof error === 'string') return error;
+  if (error.message) return error.message;
 
-  if (typeof error === "string") {
-    return error;
-  }
+  const errorString = String(error);
+  if (errorString !== '[object Object]') return errorString;
 
-  if (error instanceof Error) {
-    return error.message || "Unknown error";
-  }
+  try {
+    const jsonError = JSON.stringify(error, Object.getOwnPropertyNames(error));
+    if (jsonError && jsonError !== '{}') return jsonError;
+  } catch {}
 
-  if (typeof error === "object") {
-    const message = (error as { message?: unknown }).message;
-
-    if (typeof message === "string") {
-      return message;
-    }
-
-    if (message && typeof message === "object") {
-      try {
-        return JSON.stringify(message);
-      } catch {
-        // fall through to stringify error object below
-      }
-    }
-
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
-    }
-  }
-
-  return String(error);
+  return 'Error could not be serialized';
 }
 
 function splitScenes(story: string): string[] {
@@ -267,9 +245,16 @@ Deno.serve(async (req: Request) => {
           }
         } catch (imageError) {
           console.error(`\n!!! IMAGE GENERATION ERROR for page ${index + 1} !!!`);
-          console.error(`Error type: ${imageError?.constructor?.name || 'Unknown'}`);
-          console.error(`Error message: ${imageError?.message || 'No message'}`);
+          console.error(`Error type: ${imageError?.constructor?.name || typeof imageError}`);
+          console.error(`Error message: ${imageError?.message || 'No message property'}`);
           console.error(`Error string: ${String(imageError)}`);
+
+          try {
+            console.error(`Error JSON: ${JSON.stringify(imageError, Object.getOwnPropertyNames(imageError), 2)}`);
+          } catch (e) {
+            console.error(`Could not JSON stringify error`);
+          }
+
           if (imageError?.stack) {
             console.error(`Stack trace: ${imageError.stack}`);
           }
@@ -322,14 +307,21 @@ Deno.serve(async (req: Request) => {
     }
 
     console.error("\n!!! FATAL ERROR in story-to-video function !!!");
-    console.error(`Error type: ${error?.constructor?.name || 'Unknown'}`);
-    console.error(`Error message: ${error?.message || 'No message'}`);
+    console.error(`Error type: ${error?.constructor?.name || typeof error}`);
+    console.error(`Error message: ${error?.message || 'No message property'}`);
     console.error(`Error string: ${String(error)}`);
+
+    try {
+      console.error(`Error JSON: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`);
+    } catch (e) {
+      console.error(`Could not JSON stringify error`);
+    }
+
     if (error?.stack) {
       console.error(`Stack trace:\n${error.stack}`);
     }
 
-    let detailedError = error?.message || String(error) || "Failed to process story to storybook";
+    let detailedError = extractErrorMessage(error);
 
     if (error?.name === "RangeError" && error?.message?.includes("call stack")) {
       detailedError = "Data size too large for processing. Try generating a shorter story with fewer pages.";
@@ -338,7 +330,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         error: detailedError,
-        errorType: error?.constructor?.name || error?.name || 'Error',
+        errorType: error?.constructor?.name || error?.name || typeof error,
         details: error?.stack || 'No stack trace available',
       }),
       {
