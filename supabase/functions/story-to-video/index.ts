@@ -1,3 +1,5 @@
+import { Runware } from "npm:@runware/sdk-js@1.1.46";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -298,59 +300,66 @@ Deno.serve(async (req: Request) => {
       let imageBase64 = "";
 
       try {
-        const imagePayload = [{
-          taskType: "imageInference",
-          taskUUID: crypto.randomUUID(),
+        console.log(`Initializing Runware SDK for page ${index + 1}...`);
+        const runware = new Runware({ apiKey: runwareApiKey });
+
+        console.log(`Connecting to Runware...`);
+        await runware.connect();
+
+        console.log(`Requesting image generation for page ${index + 1}...`);
+        const imageResults = await runware.requestImages({
           positivePrompt: imagePrompt,
-          negativePrompt: "scary, dark, horror, violent, inappropriate",
+          negativePrompt: "scary, dark, horror, violent, inappropriate, text, words, letters",
           model: "runware:100@1",
           numberResults: 1,
           height: 512,
           width: 512,
-          outputType: "base64Data",
+          outputType: "base64",
           outputFormat: "PNG",
-        }];
-
-        console.log(`Sending image request to Runware API...`);
-
-        const imageResponse = await fetch("https://api.runware.ai/v1", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${runwareApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(imagePayload),
         });
 
-        console.log(`Runware API response status: ${imageResponse.status}`);
+        console.log(`Image generation response received for page ${index + 1}`);
+        console.log(`Number of images: ${imageResults?.length || 0}`);
 
-        if (!imageResponse.ok) {
-          const errorText = await imageResponse.text();
-          console.error(`Image API HTTP error for page ${index + 1} (status ${imageResponse.status}):`, errorText);
-          throw new Error(`Runware API returned status ${imageResponse.status}: ${errorText}`);
+        if (!imageResults || imageResults.length === 0) {
+          console.error(`No images returned for page ${index + 1}`);
+          throw new Error(`Runware SDK returned no images. Check API quota and model availability.`);
         }
 
-        const imageResult = await imageResponse.json();
-        console.log(`Runware API response:`, JSON.stringify(imageResult).substring(0, 500));
+        const imageResult = imageResults[0];
+        console.log(`Image result keys:`, Object.keys(imageResult || {}));
+        console.log(`Image URL present:`, !!imageResult.imageURL);
+        console.log(`Image base64 present:`, !!imageResult.imageBase64);
 
-        if (imageResult.errors && imageResult.errors.length > 0) {
-          console.error(`Image generation errors for page ${index + 1}:`, JSON.stringify(imageResult.errors));
-          throw new Error(`Image generation failed: ${JSON.stringify(imageResult.errors[0])}`);
+        if (imageResult.imageBase64) {
+          imageBase64 = imageResult.imageBase64;
+          console.log(`Successfully got base64 image for page ${index + 1}. Length: ${imageBase64.length}`);
+        } else if (imageResult.imageURL) {
+          console.log(`Got image URL for page ${index + 1}: ${imageResult.imageURL}`);
+          console.log(`Downloading image from URL...`);
+          const urlResponse = await fetch(imageResult.imageURL);
+          if (!urlResponse.ok) {
+            throw new Error(`Failed to download image from URL: ${urlResponse.status}`);
+          }
+          const imageBuffer = await urlResponse.arrayBuffer();
+          const imageBytes = new Uint8Array(imageBuffer);
+          let imageBinary = '';
+          const chunkSize = 8192;
+          for (let i = 0; i < imageBytes.length; i += chunkSize) {
+            const chunk = imageBytes.subarray(i, Math.min(i + chunkSize, imageBytes.length));
+            imageBinary += String.fromCharCode(...chunk);
+          }
+          imageBase64 = btoa(imageBinary);
+          console.log(`Successfully converted URL image to base64 for page ${index + 1}. Length: ${imageBase64.length}`);
+        } else {
+          console.error(`No imageBase64 or imageURL in result for page ${index + 1}:`, JSON.stringify(imageResult));
+          throw new Error(`Runware response missing both imageBase64 and imageURL fields.`);
         }
 
-        if (!imageResult.data || imageResult.data.length === 0) {
-          console.error(`No image data returned for page ${index + 1}. Full response:`, JSON.stringify(imageResult));
-          throw new Error(`No image data in Runware response. Check API quota and configuration.`);
-        }
+        console.log(`Disconnecting from Runware...`);
+        await runware.disconnect();
 
-        imageBase64 = imageResult.data[0]?.imageBase64 || "";
-
-        if (!imageBase64) {
-          console.error(`Empty imageBase64 for page ${index + 1}. Data object:`, JSON.stringify(imageResult.data[0]));
-          throw new Error(`Runware returned empty imageBase64. Check API response format.`);
-        }
-
-        console.log(`Successfully generated image for page ${index + 1}. Base64 length: ${imageBase64.length}`);
+        console.log(`Image generation complete for page ${index + 1}`);
       } catch (imageError) {
         console.error(`Error generating image for page ${index + 1}:`, imageError);
         console.error(`Image error type: ${imageError.name}`);
