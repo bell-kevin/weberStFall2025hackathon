@@ -12,6 +12,14 @@ export function Storybook({ storybook }) {
   const pages = storybook.storybook;
   const page = pages[currentPage];
 
+  console.log('Current page data:', {
+    pageNumber: page.page,
+    hasImageBase64: !!page.imageBase64,
+    imageBase64Length: page.imageBase64?.length || 0,
+    hasAudioBase64: !!page.audioBase64,
+    audioBase64Length: page.audioBase64?.length || 0,
+  });
+
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.load();
@@ -36,17 +44,24 @@ export function Storybook({ storybook }) {
   const audioSrc = page.audioBase64 ? `data:audio/mpeg;base64,${page.audioBase64}` : null;
   const imageSrc = page.imageBase64 ? `data:image/png;base64,${page.imageBase64}` : null;
 
+  console.log('Image src exists:', !!imageSrc);
+
   return (
     <div className="storybook-container">
       <div className="storybook-book">
         <div className="storybook-page">
           <div className="page-number">Page {page.page} of {pages.length}</div>
 
-          {imageSrc && (
-            <div className="page-image">
+          <div className="page-image">
+            {imageSrc ? (
               <img src={imageSrc} alt={`Illustration for page ${page.page}`} />
-            </div>
-          )}
+            ) : (
+              <div className="placeholder-image">
+                <p>Image loading...</p>
+                <p style={{ fontSize: '12px', color: '#666' }}>Check console for details</p>
+              </div>
+            )}
+          </div>
 
           <div className="page-content">
             {page.lines.map((line, idx) => (
