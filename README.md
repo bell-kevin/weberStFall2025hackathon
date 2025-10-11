@@ -1,5 +1,5 @@
 Weber State University fall 2025 a.i. hackathon 
-Mitch is cool
+
 # Image to Story Generator
 
 Weber State University Fall 2025 A.I. Hackathon Project
