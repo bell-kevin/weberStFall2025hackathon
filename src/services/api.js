@@ -17,3 +17,26 @@ export async function describeImage(imageData) {
 
   return await response.json();
 }
+
+export async function getStoryFromDescription(description) {
+  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+
+  if (!webhookUrl || webhookUrl === 'YOUR_N8N_WEBHOOK_URL_HERE') {
+    throw new Error('N8N webhook URL not configured');
+  }
+
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ description }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to get story from n8n');
+  }
+
+  const data = await response.json();
+  return data.story || data.text || data.response || 'No story returned';
+}
