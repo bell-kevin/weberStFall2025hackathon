@@ -30,7 +30,7 @@ export async function getStoryFromDescription(description) {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ description }),
+    body: JSON.stringify({ prompt: description }),
   });
 
   if (!response.ok) {
