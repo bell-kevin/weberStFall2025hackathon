@@ -6,25 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-interface VoiceMap {
-  [speaker: string]: string;
-}
-
 interface SceneLine {
   speaker: string;
   text: string;
 }
-
-interface ProcessedScene {
-  sceneIndex: number;
-  audioUrl: string;
-  videoUrl: string;
-  duration: number;
-}
-
-const DEFAULT_VOICE_MAP: VoiceMap = {
-  "Narrator": "21m00Tcm4TlvDq8ikWAM",
-};
 
 const DIALOGUE_REGEX = /^\s*([A-Za-z][\w\- ]{0,48})\s*:\s*(.+?)\s*$/;
 
@@ -36,11 +21,11 @@ function splitScenes(story: string): string[] {
 
 function parseSceneLines(sceneText: string): SceneLine[] {
   const lines: SceneLine[] = [];
-  
+
   for (const line of sceneText.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    
+
     const match = trimmed.match(DIALOGUE_REGEX);
     if (match) {
       lines.push({
@@ -54,131 +39,8 @@ function parseSceneLines(sceneText: string): SceneLine[] {
       });
     }
   }
-  
+
   return lines;
-}
-
-async function generateAudioWithElevenLabs(
-  text: string,
-  voiceId: string,
-  apiKey: string
-): Promise<Blob> {
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
-  
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "xi-api-key": apiKey,
-      "Accept": "audio/mpeg",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text: text,
-      model_id: "eleven_multilingual_v2",
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.5,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`ElevenLabs API failed: ${response.status} - ${errorText}`);
-  }
-
-  return await response.blob();
-}
-
-async function generateVideoWithRunware(
-  prompt: string,
-  durationSeconds: number,
-  modelName: string,
-  apiKey: string
-): Promise<Blob> {
-  const url = "https://api.runware.ai/v1/generate/video";
-  
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "Accept": "application/octet-stream,video/mp4,application/json",
-    },
-    body: JSON.stringify({
-      prompt: prompt.substring(0, 800),
-      duration: durationSeconds,
-      model: modelName,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Runware API failed: ${response.status} - ${errorText}`);
-  }
-
-  const contentType = response.headers.get("Content-Type") || "";
-  
-  if (contentType.includes("application/json")) {
-    const data = await response.json();
-    const downloadUrl = data.download_url || data.url;
-    
-    if (downloadUrl) {
-      const videoResponse = await fetch(downloadUrl);
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to download video from URL: ${videoResponse.status}`);
-      }
-      return await videoResponse.blob();
-    }
-    
-    throw new Error(`Unexpected Runware JSON response: ${JSON.stringify(data)}`);
-  }
-  
-  return await response.blob();
-}
-
-async function processScene(
-  sceneIndex: number,
-  sceneText: string,
-  voiceMap: VoiceMap,
-  defaultDuration: number,
-  modelName: string,
-  elevenlabsApiKey: string,
-  runwareApiKey: string
-): Promise<{ audioBlobs: Blob[], videoBlob: Blob }> {
-  console.log(`Processing scene ${sceneIndex}...`);
-  
-  const lines = parseSceneLines(sceneText);
-  if (lines.length === 0) {
-    lines.push({ speaker: "Narrator", text: sceneText });
-  }
-
-  const audioBlobs: Blob[] = [];
-  
-  for (const line of lines) {
-    const voiceId = voiceMap[line.speaker] || voiceMap["Narrator"];
-    if (!voiceId) {
-      throw new Error(`No voice ID configured for speaker '${line.speaker}'`);
-    }
-    
-    console.log(`Generating audio for ${line.speaker}: ${line.text.substring(0, 50)}...`);
-    const audioBlob = await generateAudioWithElevenLabs(
-      line.text,
-      voiceId,
-      elevenlabsApiKey
-    );
-    audioBlobs.push(audioBlob);
-  }
-
-  console.log(`Generating video for scene ${sceneIndex}...`);
-  const videoBlob = await generateVideoWithRunware(
-    sceneText,
-    Math.max(defaultDuration, 2),
-    modelName,
-    runwareApiKey
-  );
-
-  return { audioBlobs, videoBlob };
 }
 
 Deno.serve(async (req: Request) => {
@@ -188,6 +50,8 @@ Deno.serve(async (req: Request) => {
       headers: corsHeaders,
     });
   }
+
+  let runware: any = null;
 
   try {
     const { storyText, originalImageData } = await req.json();
@@ -250,11 +114,19 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Processing ${scenes.length} scenes into storybook format with audio and images...`);
 
+    console.log("Initializing Runware SDK once for all images...");
+    runware = new Runware({ apiKey: runwareApiKey });
+    await runware.connect();
+    console.log("Runware SDK connected successfully");
+
     const storybook = [];
 
     for (let index = 0; index < scenes.length; index++) {
       const sceneText = scenes[index];
       const lines = parseSceneLines(sceneText);
+      const isLastPage = index === scenes.length - 1;
+
+      console.log(`\n=== Processing Page ${index + 1} of ${scenes.length} ===`);
 
       console.log(`Generating audio for page ${index + 1}...`);
       const audioResponse = await fetch(
@@ -292,81 +164,80 @@ Deno.serve(async (req: Request) => {
         audioBinary += String.fromCharCode(...chunk);
       }
       const audioBase64 = btoa(audioBinary);
-
-      console.log(`Generating child-friendly image for page ${index + 1}...`);
-      const imagePrompt = `Children's storybook illustration, colorful and whimsical, suitable for kids: ${sceneText.substring(0, 200)}`;
-      console.log(`Image prompt: ${imagePrompt}`);
+      console.log(`Audio generated successfully. Length: ${audioBase64.length} chars`);
 
       let imageBase64 = "";
 
-      try {
-        console.log(`Initializing Runware SDK for page ${index + 1}...`);
-        const runware = new Runware({ apiKey: runwareApiKey });
+      if (isLastPage && originalImageData) {
+        console.log(`Using original uploaded image for final page ${index + 1}`);
+        imageBase64 = originalImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+        console.log(`Original image loaded. Length: ${imageBase64.length} chars`);
+      } else {
+        console.log(`Generating new image for page ${index + 1}...`);
+        const imagePrompt = `Children's storybook illustration, colorful and whimsical, digital art, suitable for kids: ${sceneText.substring(0, 200)}`;
+        console.log(`Image prompt: "${imagePrompt}"`);
 
-        console.log(`Connecting to Runware...`);
-        await runware.connect();
+        try {
+          console.log(`Requesting image generation via Runware SDK...`);
+          const imageResults = await runware.requestImages({
+            positivePrompt: imagePrompt,
+            negativePrompt: "scary, dark, horror, violent, inappropriate, text, words, letters, watermark",
+            model: "runware:100@1",
+            numberResults: 1,
+            height: 512,
+            width: 512,
+            outputType: "base64",
+            outputFormat: "PNG",
+          });
 
-        console.log(`Requesting image generation for page ${index + 1}...`);
-        const imageResults = await runware.requestImages({
-          positivePrompt: imagePrompt,
-          negativePrompt: "scary, dark, horror, violent, inappropriate, text, words, letters",
-          model: "runware:100@1",
-          numberResults: 1,
-          height: 512,
-          width: 512,
-          outputType: "base64",
-          outputFormat: "PNG",
-        });
+          console.log(`Runware response received. Number of results: ${imageResults?.length || 0}`);
 
-        console.log(`Image generation response received for page ${index + 1}`);
-        console.log(`Number of images: ${imageResults?.length || 0}`);
-
-        if (!imageResults || imageResults.length === 0) {
-          console.error(`No images returned for page ${index + 1}`);
-          throw new Error(`Runware SDK returned no images. Check API quota and model availability.`);
-        }
-
-        const imageResult = imageResults[0];
-        console.log(`Image result keys:`, Object.keys(imageResult || {}));
-        console.log(`Image URL present:`, !!imageResult.imageURL);
-        console.log(`Image base64 present:`, !!imageResult.imageBase64);
-
-        if (imageResult.imageBase64) {
-          imageBase64 = imageResult.imageBase64;
-          console.log(`Successfully got base64 image for page ${index + 1}. Length: ${imageBase64.length}`);
-        } else if (imageResult.imageURL) {
-          console.log(`Got image URL for page ${index + 1}: ${imageResult.imageURL}`);
-          console.log(`Downloading image from URL...`);
-          const urlResponse = await fetch(imageResult.imageURL);
-          if (!urlResponse.ok) {
-            throw new Error(`Failed to download image from URL: ${urlResponse.status}`);
+          if (!imageResults || imageResults.length === 0) {
+            console.error(`No images returned from Runware for page ${index + 1}`);
+            throw new Error(`Runware SDK returned no images. This may indicate API quota exhausted or model unavailable.`);
           }
-          const imageBuffer = await urlResponse.arrayBuffer();
-          const imageBytes = new Uint8Array(imageBuffer);
-          let imageBinary = '';
-          const chunkSize = 8192;
-          for (let i = 0; i < imageBytes.length; i += chunkSize) {
-            const chunk = imageBytes.subarray(i, Math.min(i + chunkSize, imageBytes.length));
-            imageBinary += String.fromCharCode(...chunk);
+
+          const imageResult = imageResults[0];
+          console.log(`Image result type: ${typeof imageResult}`);
+          console.log(`Image result keys: ${Object.keys(imageResult || {}).join(', ')}`);
+
+          if (imageResult.imageBase64) {
+            imageBase64 = imageResult.imageBase64;
+            console.log(`✓ Got base64 image directly. Length: ${imageBase64.length} chars`);
+          } else if (imageResult.imageURL) {
+            console.log(`Got image URL instead of base64: ${imageResult.imageURL}`);
+            console.log(`Downloading image from URL...`);
+
+            const urlResponse = await fetch(imageResult.imageURL);
+            if (!urlResponse.ok) {
+              throw new Error(`Failed to download image from URL. Status: ${urlResponse.status}`);
+            }
+
+            const imageBuffer = await urlResponse.arrayBuffer();
+            const imageBytes = new Uint8Array(imageBuffer);
+            let imageBinary = '';
+            for (let i = 0; i < imageBytes.length; i += chunkSize) {
+              const chunk = imageBytes.subarray(i, Math.min(i + chunkSize, imageBytes.length));
+              imageBinary += String.fromCharCode(...chunk);
+            }
+            imageBase64 = btoa(imageBinary);
+            console.log(`✓ Converted URL image to base64. Length: ${imageBase64.length} chars`);
+          } else {
+            console.error(`Runware result missing both imageBase64 and imageURL!`);
+            console.error(`Full result object: ${JSON.stringify(imageResult)}`);
+            throw new Error(`Runware returned invalid response: no imageBase64 or imageURL field found`);
           }
-          imageBase64 = btoa(imageBinary);
-          console.log(`Successfully converted URL image to base64 for page ${index + 1}. Length: ${imageBase64.length}`);
-        } else {
-          console.error(`No imageBase64 or imageURL in result for page ${index + 1}:`, JSON.stringify(imageResult));
-          throw new Error(`Runware response missing both imageBase64 and imageURL fields.`);
+        } catch (imageError) {
+          console.error(`\n!!! IMAGE GENERATION ERROR for page ${index + 1} !!!`);
+          console.error(`Error type: ${imageError?.constructor?.name || 'Unknown'}`);
+          console.error(`Error message: ${imageError?.message || 'No message'}`);
+          console.error(`Error string: ${String(imageError)}`);
+          if (imageError?.stack) {
+            console.error(`Stack trace: ${imageError.stack}`);
+          }
+
+          throw new Error(`Image generation failed for page ${index + 1}: ${imageError?.message || String(imageError)}`);
         }
-
-        console.log(`Disconnecting from Runware...`);
-        await runware.disconnect();
-
-        console.log(`Image generation complete for page ${index + 1}`);
-      } catch (imageError) {
-        console.error(`Error generating image for page ${index + 1}:`, imageError);
-        console.error(`Image error type: ${imageError.name}`);
-        console.error(`Image error message: ${imageError.message}`);
-        console.error(`Image error stack: ${imageError.stack}`);
-
-        throw new Error(`Failed to generate image for page ${index + 1}: ${imageError.message}. Check Runware API key, quota, and configuration.`);
       }
 
       const pageData = {
@@ -377,12 +248,17 @@ Deno.serve(async (req: Request) => {
         imageBase64: imageBase64,
       };
 
-      console.log(`Page ${index + 1} complete. Audio length: ${audioBase64.length}, Image length: ${imageBase64.length}`);
-
+      console.log(`✓ Page ${index + 1} complete. Audio: ${audioBase64.length} chars, Image: ${imageBase64.length} chars`);
       storybook.push(pageData);
     }
 
-    console.log(`Successfully created storybook with ${storybook.length} pages`);
+    if (runware) {
+      console.log("Disconnecting from Runware...");
+      await runware.disconnect();
+      console.log("Runware disconnected successfully");
+    }
+
+    console.log(`\n✓✓✓ Successfully created storybook with ${storybook.length} pages ✓✓✓`);
 
     return new Response(
       JSON.stringify({
@@ -398,22 +274,33 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    console.error("Error in story-to-video function:", error);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    console.error("Error name:", error.name);
+    if (runware) {
+      try {
+        await runware.disconnect();
+      } catch (disconnectError) {
+        console.error("Error disconnecting Runware:", disconnectError);
+      }
+    }
 
-    let detailedError = error.message || "Failed to process story to storybook";
+    console.error("\n!!! FATAL ERROR in story-to-video function !!!");
+    console.error(`Error type: ${error?.constructor?.name || 'Unknown'}`);
+    console.error(`Error message: ${error?.message || 'No message'}`);
+    console.error(`Error string: ${String(error)}`);
+    if (error?.stack) {
+      console.error(`Stack trace:\n${error.stack}`);
+    }
 
-    if (error.name === "RangeError" && error.message.includes("call stack")) {
+    let detailedError = error?.message || String(error) || "Failed to process story to storybook";
+
+    if (error?.name === "RangeError" && error?.message?.includes("call stack")) {
       detailedError = "Data size too large for processing. Try generating a shorter story with fewer pages.";
     }
 
     return new Response(
       JSON.stringify({
         error: detailedError,
-        errorType: error.name,
-        details: error.stack,
+        errorType: error?.constructor?.name || error?.name || 'Error',
+        details: error?.stack || 'No stack trace available',
       }),
       {
         status: 500,
