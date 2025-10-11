@@ -58,3 +58,28 @@ export async function getStoryFromDescription(description) {
   const data = JSON.parse(text);
   return data.story || data.text || data.response || 'No story returned';
 }
+
+export async function convertTextToSpeech(text) {
+  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/text-to-speech`;
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.error || 'Failed to convert text to speech');
+    } catch (e) {
+      throw new Error(`Failed to convert text to speech: ${response.status}`);
+    }
+  }
+
+  return await response.blob();
+}

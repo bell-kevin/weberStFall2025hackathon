@@ -1,6 +1,6 @@
 import './ResultDisplay.css';
 
-export function ResultDisplay({ description, story, loading, error }) {
+export function ResultDisplay({ description, story, audioUrl, loading, error }) {
   if (!loading && !description && !story && !error) {
     return null;
   }
@@ -51,6 +51,13 @@ export function ResultDisplay({ description, story, loading, error }) {
                 <h3>Your Story</h3>
               </div>
               <p className="story-text">{story}</p>
+              {audioUrl && (
+                <div className="audio-container">
+                  <audio controls src={audioUrl} className="audio-player">
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              )}
             </div>
           )}
         </>

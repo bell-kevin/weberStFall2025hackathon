@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { ImageUpload } from './components/ImageUpload';
 import { ResultDisplay } from './components/ResultDisplay';
-import { describeImage, getStoryFromDescription } from './services/api';
+import { describeImage, getStoryFromDescription, convertTextToSpeech } from './services/api';
 import './styles/App.css';
 
 function App() {
   const [description, setDescription] = useState('');
   const [story, setStory] = useState('');
+  const [audioUrl, setAudioUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -14,6 +15,7 @@ function App() {
     if (!imageData) {
       setDescription('');
       setStory('');
+      setAudioUrl('');
       setError('');
       return;
     }
@@ -22,6 +24,7 @@ function App() {
     setError('');
     setDescription('');
     setStory('');
+    setAudioUrl('');
 
     try {
       const result = await describeImage(imageData);
@@ -29,6 +32,10 @@ function App() {
 
       const generatedStory = await getStoryFromDescription(result.description);
       setStory(generatedStory);
+
+      const audioBlob = await convertTextToSpeech(generatedStory);
+      const url = URL.createObjectURL(audioBlob);
+      setAudioUrl(url);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -47,6 +54,7 @@ function App() {
         <ResultDisplay
           description={description}
           story={story}
+          audioUrl={audioUrl}
           loading={loading}
           error={error}
         />

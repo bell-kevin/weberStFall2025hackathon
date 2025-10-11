@@ -152,3 +152,20 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   white-space: pre-wrap;
 }
+
+.audio-container {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: center;
+}
+
+.audio-player {
+  width: 100%;
+  max-width: 100%;
+  outline: none;
+  border-radius: 8px;
+}
