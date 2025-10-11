@@ -11,11 +11,21 @@ export async function describeImage(imageData) {
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to describe image');
+    const text = await response.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.error || 'Failed to describe image');
+    } catch (e) {
+      throw new Error(`Failed to describe image: ${response.status}`);
+    }
   }
 
-  return await response.json();
+  const text = await response.text();
+  if (!text) {
+    throw new Error('Empty response from server');
+  }
+
+  return JSON.parse(text);
 }
 
 export async function getStoryFromDescription(description) {
@@ -31,10 +41,20 @@ export async function getStoryFromDescription(description) {
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to get story from n8n');
+    const text = await response.text();
+    try {
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.error || 'Failed to get story from n8n');
+    } catch (e) {
+      throw new Error(`Failed to get story from n8n: ${response.status}`);
+    }
   }
 
-  const data = await response.json();
+  const text = await response.text();
+  if (!text) {
+    throw new Error('Empty response from server');
+  }
+
+  const data = JSON.parse(text);
   return data.story || data.text || data.response || 'No story returned';
 }

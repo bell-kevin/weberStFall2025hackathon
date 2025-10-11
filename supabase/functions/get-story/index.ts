@@ -42,7 +42,18 @@ Deno.serve(async (req: Request) => {
       throw new Error(`n8n webhook failed with status ${response.status}`);
     }
 
-    const data = await response.json();
+    const text = await response.text();
+
+    if (!text || text.trim() === '') {
+      throw new Error('n8n webhook returned empty response');
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error(`n8n webhook returned invalid JSON: ${text.substring(0, 100)}`);
+    }
 
     return new Response(
       JSON.stringify(data),
